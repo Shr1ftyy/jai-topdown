@@ -8,13 +8,13 @@ EntityMap :: Table(EntityId, *Entity);
 Manager :: struct
 {
 	entities : EntityMap;
-	lastUpdateTime : float64;
+	lastUpdateTime : float;
 }
 
 make_manager :: () -> *Manager
 {
 	mgr : *Manager = New(Manager);
-	mgr.lastUpdateTime = get_time();
+	mgr.lastUpdateTime = cast(float)get_time();
 	return mgr;
 }
 
@@ -36,7 +36,7 @@ manager_add_entity :: (mgr : *Manager, e : *Entity)
 // TODO: updating entities logic
 manager_update :: (mgr : *Manager)
 {	
-	current_time := get_time();
+	current_time := cast(float)get_time();
 	dt := current_time - mgr.lastUpdateTime;
 
 	for e, id: mgr.entities
@@ -45,7 +45,7 @@ manager_update :: (mgr : *Manager)
 		{
 			case .PLAYER;
 				p : *Player = cast(*Player)e; 
-				update_player(p, cast(float)dt);
+				update_player(p, dt);
 		}
 	} 
 	mgr.lastUpdateTime = current_time;

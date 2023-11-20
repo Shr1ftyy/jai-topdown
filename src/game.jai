@@ -49,6 +49,7 @@ make_player :: (position : Vector2, texture : *Simp.Texture, texture_dims : Vect
     player.type = .PLAYER;
     player.current_idx = 0;
     player.current_frame = 0;
+    player.last_frame_update_time = cast(float)get_time();
 
     return player;
 }
@@ -66,30 +67,35 @@ update_player :: (player : *Player, dt : float)
         }
     }
 
+    // TODO: key indexing is wrong???
     for held_keys
     {
         if it == .ARROW_LEFT
         {
             resultant_velocity.x -= player.velocity;
             player.moving = true;
+            player.current_idx = 1;
             // print("left");
         }
         if it == .ARROW_UP
         {
             resultant_velocity.y += player.velocity;
             player.moving = true;
+            player.current_idx = 3;
             // print("up");
         }
         if it == .ARROW_RIGHT
         {
             resultant_velocity.x += player.velocity;
             player.moving = true;
+            player.current_idx = 2;
             // print("right");
         }
         if it == .ARROW_DOWN
         {
             resultant_velocity.y -= player.velocity;
             player.moving = true;
+            player.current_idx = 0;
             // print("down");
         }
     }
@@ -105,7 +111,18 @@ update_player :: (player : *Player, dt : float)
     // print("%\n", resultant_velocity);
     array_reset(*held_keys);
 
-    if(!player.moving) return;
+    if !player.moving return;
+
+    delta := cast(float)get_time() - player.last_frame_update_time;
+
+    if delta >= 1.0/cast(float)player.sprite_fps
+    {
+        player.current_frame += 1;
+        player.current_frame = player.current_frame % (player.num_frames[player.current_frame] - 1);
+        player.last_frame_update_time = cast(float)get_time();
+    } 
+
+    player.moving = false;
 }
 
 // TODO: add animations
@@ -122,8 +139,8 @@ draw_player :: (player : *Player)
     texture_bl := player.sprite_indices[player.current_idx];
     if(player.current_frame > 0)
     {
-        texture_bl.x += player.indexing_vec.x + player.current_frame;
-        texture_bl.y += player.indexing_vec.y + player.current_frame;
+        texture_bl.x += player.indexing_vec.x * player.current_frame;
+        texture_bl.y += player.indexing_vec.y * player.current_frame;
     }
     texture_bl.x /= player.texture.width;
     texture_bl.y /= player.texture.height;

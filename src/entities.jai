@@ -44,6 +44,8 @@ Player :: struct
     current_idx : int;
     // current frame in batch
     current_frame : int;
+    // last frame update time
+    last_frame_update_time : float;
 }
 
 Enemy :: struct 

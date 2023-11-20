@@ -55,7 +55,7 @@ main :: ()
     array_add(*num_frames, 4);
 
     indexing_vec := Vector2.{16.0, 0.0};
-    sprite_fps := 10.0;
+    sprite_fps := 30.0;
 
     e : *Player = make_player(pos, texture, Vector2.{cast(float)texture.width, cast(float)texture.height}, sprite_dims, dims, dims, sprite_indices, num_frames, indexing_vec, sprite_fps, 500.0);
     m : *Manager = make_manager();
@@ -89,7 +89,7 @@ main :: ()
             }
         }
 
-        Simp.clear_render_target(.12, .12, .12, 1);
+        Simp.clear_render_target(.2, .2, .2, 1);
 
         Simp.set_shader_for_color();
 
