@@ -8,13 +8,15 @@ EntityMap :: Table(EntityId, *Entity);
 Manager :: struct
 {
 	entities : EntityMap;
+	window : Window_Type;
 	lastUpdateTime : float;
 }
 
-make_manager :: () -> *Manager
+make_manager :: (window : Window_Type) -> *Manager
 {
 	mgr : *Manager = New(Manager);
 	mgr.lastUpdateTime = cast(float)get_time();
+	mgr.window = window;
 	return mgr;
 }
 
@@ -45,7 +47,10 @@ manager_update :: (mgr : *Manager)
 		{
 			case .PLAYER;
 				p : *Player = cast(*Player)e; 
-				update_player(p, dt);
+				update_player(mgr, p, dt);
+			case .PLAYER_BULLET;
+				b : *Bullet = cast(*Bullet)e; 
+				update_bullet(mgr, b, dt);
 		}
 	} 
 	mgr.lastUpdateTime = current_time;
@@ -60,7 +65,8 @@ manager_draw :: (mgr : *Manager)
 			case .PLAYER;
 				p : *Player = cast(*Player)e; 
 				draw_player(p);
-			case .ENTITY; draw_entity(e);
+			case .PLAYER_BULLET; 
+				draw_entity(e);
 		}
 	} 
 }

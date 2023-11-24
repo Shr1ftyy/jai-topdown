@@ -3,11 +3,12 @@
 // keys which have been held down
 held_keys : [..] Input.Key_Code;
 
-make_entity :: (position : Vector2, texture : *Simp.Texture, texture_dims : Vector2, sprite_dims : Vector2, output_dims : Vector2, hitbox_dims : Vector2) -> *Entity
+make_entity :: (position : Vector2, rotation : float, texture : *Simp.Texture, texture_dims : Vector2, sprite_dims : Vector2, output_dims : Vector2, hitbox_dims : Vector2) -> *Entity
 {
     entity : *Entity = New(Entity);
     entity.x = position.x; 
     entity.y = position.y;
+    entity.rotation = rotation;
     entity.texture = texture;
     entity.texture_dims = texture_dims;
     entity.sprite_dims = sprite_dims;
@@ -22,19 +23,37 @@ make_entity :: (position : Vector2, texture : *Simp.Texture, texture_dims : Vect
 draw_entity :: (e : *Entity)
 {
     Simp.set_shader_for_images(e.texture);
-    Simp.immediate_begin();
+    // Simp.immediate_begin();
 
     v2 :: make_vector2;
-    Simp.immediate_quad(v2(0, 0), v2(cast(float)e.texture.width, 0), v2(cast(float)e.texture.width, cast(float)e.texture.height), v2(0, cast(float)e.texture.height));
-    Simp.immediate_flush();
+
+    h := v2(e.output_dims.x/2, 0);
+    v := v2(0, e.output_dims.y/2);
+
+    // rotate a vector around the origin and offset the points initialized above by it's dims
+    radians := (PI / 180.0) * e.rotation;
+    rotate(*h, radians);
+    rotate(*v, radians);
+
+    // h = rotate(h, radians);
+    // v = rotate(v, radians);
+
+    p0 := e.position - h - v;
+    p1 := e.position + h - v;
+    p2 := e.position + h + v;
+    p3 := e.position - h + v;
+
+    Simp.immediate_quad(p0, p1, p2, p3, Vector4.{1, 1, 1, 1});
+    // Simp.immediate_flush();
 }
 
-make_player :: (position : Vector2, texture : *Simp.Texture, texture_dims : Vector2, sprite_dims : Vector2, output_dims : Vector2, hitbox_dims : Vector2, sprite_indices : [..] Vector2, num_frames : [..] int, indexing_vec : Vector2, sprite_fps : float, velocity : float) -> *Player
+make_player :: (position : Vector2, rotation : float, texture : *Simp.Texture, texture_dims : Vector2, sprite_dims : Vector2, output_dims : Vector2, hitbox_dims : Vector2, sprite_indices : [..] Vector2, num_frames : [..] int, indexing_vec : Vector2, sprite_fps : float, velocity : float, hp : float, bullets : Table(BulletType, *Bullet)) -> *Player
 {
     player : *Player = New(Player);
     player.x = position.x; 
     player.y = position.y;
     player.velocity = velocity;
+    player.rotation = rotation;
     player.texture = texture;
     player.texture_dims = texture_dims;
     player.sprite_dims = sprite_dims;
@@ -50,11 +69,13 @@ make_player :: (position : Vector2, texture : *Simp.Texture, texture_dims : Vect
     player.current_idx = 0;
     player.current_frame = 0;
     player.last_frame_update_time = cast(float)get_time();
+    player.hp = hp;
+    player.bullets = bullets;
 
     return player;
 }
 
-update_player :: (player : *Player, dt : float)
+update_player :: (mgr : *Manager, player : *Player, dt : float)
 {   
     resultant_velocity := Vector2.{0.0, 0.0};
     
@@ -98,9 +119,14 @@ update_player :: (player : *Player, dt : float)
             player.current_idx = 0;
             // print("down");
         }
+        if it == .MOUSE_BUTTON_LEFT
+        {
+            b_type, success := table_find(*player.bullets, .BASIC);
+            if (success) fire_bullet_player(mgr, b_type, player.position);
+        }
     }
 
-
+    // update player params - velocity and position
     resultant_velocity = unit_vector(resultant_velocity);
     resultant_velocity.x *= player.velocity;
     resultant_velocity.y *= player.velocity;
@@ -125,12 +151,12 @@ update_player :: (player : *Player, dt : float)
     player.moving = false;
 }
 
-// TODO: add animations
 draw_player :: (player : *Player)
 {
     Simp.set_shader_for_images(player.texture);
     Simp.immediate_begin();
 
+    // TODO: use v2 :: make_vector2 instead of this (GROOOSSSS)
     bottom_left := Vector2.{player.x - player.output_dims.x/2, player.y - player.output_dims.y/2};
     top_left := Vector2.{player.x - player.output_dims.x/2, player.y + player.output_dims.y/2};
     top_right := Vector2.{player.x + player.output_dims.x/2, player.y + player.output_dims.y/2};
@@ -180,4 +206,69 @@ draw_player :: (player : *Player)
                    texture_bl, texture_br, texture_tr, texture_tl);
 
     Simp.immediate_flush();  
+}
+
+fire_bullet_player :: (mgr : *Manager, bullet : *Bullet, spawn_pos : Vector2)
+{
+    new_bullet := New(Bullet);
+    temporary := [size_of(Bullet)] u8;
+
+    memcpy(new_bullet, bullet, size_of(Bullet));
+
+    mouse_x, mouse_y := get_mouse_pointer_position(mgr.window, true);
+    rot_vec : Vector2;
+
+    rot_vec.x, rot_vec.y = cast(float)(mouse_x - spawn_pos.x), cast(float)(mouse_y - spawn_pos.y);
+    v2 :: make_vector2;
+    // create vector to get angle from
+    rel_vec := v2(0, 1);
+    // transform rotation vector to a unit vector
+    rot_vec = unit_vector(rot_vec);
+    // get dot product of 
+    // get angle or rotation
+    rotation := -(acos(dot_product(rel_vec, rot_vec)/(length(rel_vec) * length(rot_vec))) / PI) * 180.0;
+    if(rot_vec.x < 0) rotation *= -1.0;
+
+    new_bullet.position = spawn_pos;
+    new_bullet.rotation = rotation;
+
+    manager_add_entity(mgr, cast(*Entity)new_bullet);
+}
+
+make_bullet :: (position : Vector2, rotation : float, texture : *Simp.Texture, texture_dims : Vector2, sprite_dims : Vector2, output_dims : Vector2, hitbox_dims : Vector2, sprite_indices : [..] Vector2, num_frames : [..] int, indexing_vec : Vector2, sprite_fps : float, velocity : float, type : EntityType, bullet_type : BulletType) -> *Bullet
+{
+    bullet : *Bullet = New(Bullet);
+    bullet.x = position.x; 
+    bullet.y = position.y;
+    bullet.velocity = velocity;
+    bullet.rotation = rotation;
+    bullet.texture = texture;
+    bullet.texture_dims = texture_dims;
+    bullet.sprite_dims = sprite_dims;
+    bullet.output_dims = output_dims;
+    bullet.hitbox_dims = hitbox_dims;
+    bullet.destroyed = false;
+    bullet.sprite_indices = sprite_indices;
+    bullet.num_frames = num_frames;
+    bullet.indexing_vec = indexing_vec; 
+    bullet.sprite_fps = sprite_fps;
+    bullet.current_idx = 0;
+    bullet.current_frame = 0;
+    bullet.last_frame_update_time = cast(float)get_time();
+    bullet.type = type;
+    bullet.bullet_type = bullet_type;
+
+    return bullet;
+}
+
+update_bullet :: (mgr : *Manager, bullet : *Bullet, dt : float)
+{
+    v2 :: make_vector2;
+    resultant_velocity := v2(0, 1);
+    radians := (PI / 180.0) * bullet.rotation;
+    rotate(*resultant_velocity, radians);
+    resultant_velocity.x *= bullet.velocity;
+    resultant_velocity.y *= bullet.velocity;
+
+    bullet.x, bullet.y += resultant_velocity.x * dt, resultant_velocity.y *dt;
 }
