@@ -3,9 +3,25 @@
 // keys which have been held down
 held_keys : [..] Input.Key_Code;
 
+// helper functions
+
+//collision check -> kindy hacky but will have to do for now
+check_collision_radius :: (e1 : *Entity, e2 : *Entity, radius : float) -> bool
+{
+    if (distance(e1.position, e2.position) <= radius) return true;
+    return false;
+}
+
+// out of bounds check
+check_oob :: (pos : Vector2, boundary : Vector2) -> bool
+{
+    return cast(bool)(pos.x >= boundary.x || pos.x <= 0 || pos.y >= boundary.y || pos.y <= 0);
+}
+
 make_entity :: (position : Vector2, rotation : float, texture : *Simp.Texture, texture_dims : Vector2, sprite_dims : Vector2, output_dims : Vector2, hitbox_dims : Vector2) -> *Entity
 {
     entity : *Entity = New(Entity);
+    entity.id = current_id;
     entity.x = position.x; 
     entity.y = position.y;
     entity.rotation = rotation;
@@ -16,6 +32,8 @@ make_entity :: (position : Vector2, rotation : float, texture : *Simp.Texture, t
     entity.hitbox_dims = hitbox_dims;
     entity.destroyed = false;
     entity.type = .ENTITY;
+
+    current_id += 1;
     
     return entity;
 }
@@ -50,6 +68,7 @@ draw_entity :: (e : *Entity)
 make_player :: (position : Vector2, rotation : float, texture : *Simp.Texture, texture_dims : Vector2, sprite_dims : Vector2, output_dims : Vector2, hitbox_dims : Vector2, sprite_indices : [..] Vector2, num_frames : [..] int, indexing_vec : Vector2, sprite_fps : float, velocity : float, hp : float, bullets : Table(BulletType, *Bullet)) -> *Player
 {
     player : *Player = New(Player);
+    player.id = current_id;
     player.x = position.x; 
     player.y = position.y;
     player.velocity = velocity;
@@ -71,6 +90,9 @@ make_player :: (position : Vector2, rotation : float, texture : *Simp.Texture, t
     player.last_frame_update_time = cast(float)get_time();
     player.hp = hp;
     player.bullets = bullets;
+    player.last_fire_time = cast(float)get_time();
+
+    current_id += 1;
 
     return player;
 }
@@ -78,6 +100,7 @@ make_player :: (position : Vector2, rotation : float, texture : *Simp.Texture, t
 update_player :: (mgr : *Manager, player : *Player, dt : float)
 {   
     resultant_velocity := Vector2.{0.0, 0.0};
+    last_pos := player.position;
     
     // TODO: is there a cleaner way to do this lmao? 
     for Input.input_button_states
@@ -121,8 +144,14 @@ update_player :: (mgr : *Manager, player : *Player, dt : float)
         }
         if it == .MOUSE_BUTTON_LEFT
         {
-            b_type, success := table_find(*player.bullets, .BASIC);
-            if (success) fire_bullet_player(mgr, b_type, player.position);
+            now := cast(float)get_time();
+            if (now - player.last_fire_time >= (1/player.default_fire_rate))
+            {
+                b_type, success := table_find(*player.bullets, .BASIC);
+                if !success break;
+                fire_bullet_player(mgr, b_type, player.position);
+                player.last_fire_time = now;
+            }
         }
     }
 
@@ -136,6 +165,12 @@ update_player :: (mgr : *Manager, player : *Player, dt : float)
 
     // print("%\n", resultant_velocity);
     array_reset(*held_keys);
+
+    // TODO: cast beforehand, gross
+    if check_oob(player.position, Vector2.{cast(float)window_width, cast(float)window_height})
+    {
+        player.position = last_pos;
+    }
 
     if !player.moving return;
 
@@ -211,7 +246,6 @@ draw_player :: (player : *Player)
 fire_bullet_player :: (mgr : *Manager, bullet : *Bullet, spawn_pos : Vector2)
 {
     new_bullet := New(Bullet);
-    temporary := [size_of(Bullet)] u8;
 
     memcpy(new_bullet, bullet, size_of(Bullet));
 
@@ -231,6 +265,8 @@ fire_bullet_player :: (mgr : *Manager, bullet : *Bullet, spawn_pos : Vector2)
 
     new_bullet.position = spawn_pos;
     new_bullet.rotation = rotation;
+    new_bullet.id = current_id;
+    current_id += 1;
 
     manager_add_entity(mgr, cast(*Entity)new_bullet);
 }
@@ -238,6 +274,7 @@ fire_bullet_player :: (mgr : *Manager, bullet : *Bullet, spawn_pos : Vector2)
 make_bullet :: (position : Vector2, rotation : float, texture : *Simp.Texture, texture_dims : Vector2, sprite_dims : Vector2, output_dims : Vector2, hitbox_dims : Vector2, sprite_indices : [..] Vector2, num_frames : [..] int, indexing_vec : Vector2, sprite_fps : float, velocity : float, type : EntityType, bullet_type : BulletType) -> *Bullet
 {
     bullet : *Bullet = New(Bullet);
+    bullet.id = current_id;
     bullet.x = position.x; 
     bullet.y = position.y;
     bullet.velocity = velocity;
@@ -258,6 +295,8 @@ make_bullet :: (position : Vector2, rotation : float, texture : *Simp.Texture, t
     bullet.type = type;
     bullet.bullet_type = bullet_type;
 
+    current_id += 1;
+
     return bullet;
 }
 
@@ -271,4 +310,10 @@ update_bullet :: (mgr : *Manager, bullet : *Bullet, dt : float)
     resultant_velocity.y *= bullet.velocity;
 
     bullet.x, bullet.y += resultant_velocity.x * dt, resultant_velocity.y *dt;
+
+    // TODO: cast beforehand, gross
+    if check_oob(bullet.position, Vector2.{cast(float)window_width, cast(float)window_height})
+    {
+        array_add(*mgr.delete_queue, bullet.id);
+    }
 }

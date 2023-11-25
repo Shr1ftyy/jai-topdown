@@ -7,9 +7,15 @@ EntityMap :: Table(EntityId, *Entity);
 
 Manager :: struct
 {
+	// map of entities present
 	entities : EntityMap;
+	// the game's window
 	window : Window_Type;
+	// last update time
 	lastUpdateTime : float;
+	// queue of entities to delete
+	// TODO: use entity ptr instead of entity id???
+	delete_queue : [..] EntityId;
 }
 
 make_manager :: (window : Window_Type) -> *Manager
@@ -20,27 +26,36 @@ make_manager :: (window : Window_Type) -> *Manager
 	return mgr;
 }
 
-// TODO: update entities
-// manager_update :: (*Manager : manager)
-// {
-// 	for id, entity: manager.entities
-// 	{
-// 		// update all entities
-// 	} 
-// }
-
 manager_add_entity :: (mgr : *Manager, e : *Entity)
 {
-	table_add(*mgr.entities, current_id, e);
-	current_id += 1;
+	table_add(*mgr.entities, e.id, e);
 }
 
-// TODO: updating entities logic
+manager_del_entity :: (mgr : *Manager, id : EntityId)
+{
+	table_remove(*mgr.entities, id);
+}
+
+// TODO: rename the manager function signatures to action_manager :: (...)
 manager_update :: (mgr : *Manager)
 {	
+	window_width, window_height = Simp.get_render_dimensions(mgr.window);
 	current_time := cast(float)get_time();
 	dt := current_time - mgr.lastUpdateTime;
 
+	// delete entities which need to be removed by reffering to the manager's delete queue
+
+	while (mgr.delete_queue.count > 0)
+	{
+		to_remove := mgr.delete_queue[0];
+		array_unordered_remove_by_index(*mgr.delete_queue, 0);
+		ptr, _ := table_find(*mgr.entities, to_remove);
+		// TODO: look more into how memory management actually works in this language...
+		free(ptr);
+		manager_del_entity(mgr, to_remove);
+	}
+
+	// update entities
 	for e, id: mgr.entities
 	{
 		if e.type == 

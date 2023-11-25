@@ -19,6 +19,9 @@ BulletType :: enum
 
 Entity :: struct 
 {
+    // entity id
+    id : EntityId;
+    // entity position
     using position : Vector2;
     // movement velocity
     velocity : float;
@@ -35,11 +38,17 @@ Entity :: struct
     destroyed : bool;
 }
 
+// TODO: set default fire rate on player creation
 Player :: struct 
 {
     using entity : Entity;
     // different bullet types -> used for accessing them when the player has a certain bullet type activated
     bullets : Table(BulletType, *Bullet);
+    // default fire rate (round/s)
+    default_fire_rate : float = 5.0;
+    // last fire time
+    last_fire_time : float;
+    // hitpoints
     hp : float;
     // is the player moving?
     moving : bool;
